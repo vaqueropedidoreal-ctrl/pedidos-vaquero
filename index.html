@@ -4,9 +4,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pedidos Vaquero</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+  <script src="https://unpkg.com/react@17.0.2/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@17.0.2/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -183,7 +183,7 @@ const s = {
 };
 
 // ===== ADMIN PANEL COMPONENT =====
-function AdminPanel({usuario, usuarios, mostrarNotif}) {
+function AdminPanel({usuario, usuarios, mostrarNotif, historial, archivarSemana}) {
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoPass, setNuevoPass] = useState("");
   const [nuevoRol, setNuevoRol] = useState("tienda");
@@ -295,6 +295,81 @@ function AdminPanel({usuario, usuarios, mostrarNotif}) {
           ))}
         </div>
       </div>
+
+      {/* HISTORIAL SEMANAL Y COMPARATIVO MENSUAL */}
+      <div style={{flex:"1 1 100%",minWidth:280}}>
+        <div style={s.card}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
+            <div style={{fontWeight:800,fontSize:13,color:"#1a1a2e"}}>📊 Historial Semanal (solo tú)</div>
+            <button style={{...s.bwsp,marginTop:0,width:"auto",padding:"7px 14px",background:"#dc2626"}} onClick={archivarSemana}>
+              🗑️ Cerrar y Archivar Semana
+            </button>
+          </div>
+          <div style={{fontSize:11,color:"#6b7280",marginBottom:11}}>
+            Cierra la semana actual (Lunes-Domingo), guarda el resumen y limpia los pedidos entregados de Firebase.
+          </div>
+
+          {historial.length === 0
+            ? <div style={s.empty}>Sin semanas archivadas aún</div>
+            : (
+              <>
+                <div style={{overflowX:"auto",marginBottom:14}}>
+                  <table style={{...s.tabla,fontSize:11}}>
+                    <thead><tr style={{background:"#f8f7f4"}}>
+                      <th style={s.th}>Semana</th>
+                      <th style={s.th}>Pedidos</th>
+                      <th style={s.th}>Piezas Totales</th>
+                    </tr></thead>
+                    <tbody>
+                      {historial.map(h=>(
+                        <tr key={h.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                          <td style={s.td}><strong>{h.weekKey}</strong></td>
+                          <td style={s.td}>{h.totalPedidos}</td>
+                          <td style={s.td}>{h.totalPiezas}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button style={{...s.btnExcel,background:"#7c3aed"}} onClick={()=>{
+                  // Construir hoja comparativa: filas = semanas, columnas = productos, con grafica
+                  const todosLosProductos = [...new Set(historial.flatMap(h=>Object.keys(h.productos||{})))];
+                  const headerRow = ["Semana","Total Pedidos","Total Piezas",...todosLosProductos];
+                  const dataRows = historial.slice().reverse().map(h=>{
+                    const row = [h.weekKey, h.totalPedidos, h.totalPiezas];
+                    todosLosProductos.forEach(p=> row.push((h.productos||{})[p]||0));
+                    return row;
+                  });
+                  const ws = XLSX.utils.aoa_to_sheet([headerRow,...dataRows]);
+                  ws["!cols"] = [{wch:12},{wch:14},{wch:14},...todosLosProductos.map(()=>({wch:14}))];
+
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Comparativo Semanal");
+
+                  // Hoja 2: detalle por tienda de cada semana
+                  const tiendaRows = historial.flatMap(h =>
+                    Object.entries(h.tiendas||{}).map(([tienda,piezas]) => ({
+                      "Semana": h.weekKey, "Tienda": tienda, "Piezas Entregadas": piezas
+                    }))
+                  );
+                  const wsTiendas = XLSX.utils.json_to_sheet(tiendaRows.length?tiendaRows:[{"Semana":"Sin datos"}]);
+                  XLSX.utils.book_append_sheet(wb, wsTiendas, "Por Tienda");
+
+                  // Crear grafica de columnas (chart) usando datos de productos por semana
+                  try {
+                    const chartData = dataRows.map((row,i) => ({name: row[0], values: row.slice(3)}));
+                    // SheetJS community no soporta charts nativos; se exportan los datos listos para graficar en Excel
+                  } catch(e) {}
+
+                  XLSX.writeFile(wb, `Comparativo_Mensual_Vaquero.xlsx`);
+                  mostrarNotif("✅ Excel comparativo descargado — selecciona datos e Insertar > Gráfica en Excel");
+                }}>📈 Descargar Comparativo Mensual (Excel)</button>
+              </>
+            )
+          }
+        </div>
+      </div>
     </div>
   );
 }
@@ -324,6 +399,7 @@ function App() {
   const [loginUser, setLoginUser] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [historial, setHistorial] = useState([]);
 
   useEffect(()=>{
     const unsubP = db.collection("pedidos").orderBy("timestamp","desc").onSnapshot(snap=>{
@@ -336,7 +412,10 @@ function App() {
       if(snap.docs.length>0) setUsuarios(snap.docs.map(d=>({id:d.id,...d.data()})));
       else db.collection("usuarios").doc("admin").set({nombre:"Edgar (Admin)",password:"vaquero2024",rol:"admin",permisos:PERMISOS_ROL.admin});
     });
-    return ()=>{ unsubP(); unsubC(); unsubU(); };
+    const unsubH = db.collection("historial_semanal").orderBy("weekKey","desc").onSnapshot(snap=>{
+      setHistorial(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>{ unsubP(); unsubC(); unsubU(); unsubH(); };
   },[]);
 
   const mostrarNotif = (msg,tipo="ok")=>{ setNotif({msg,tipo}); setTimeout(()=>setNotif(null),3200); };
@@ -417,6 +496,49 @@ function App() {
   const iniciarModoEnvio = () => {
     const td=pedidos.filter(p=>p.estado!=="entregado").map(p=>({id:p.id,tienda:p.tienda,ruta:p.ruta||"Sin ruta",activa:true,productos:(p.productos||[]).map(pr=>({...pr,tachado:false}))}));
     setEnvioTiendas(td); setEnvioIniciado(true);
+  };
+
+  // Obtener número de semana ISO y año
+  const getWeekKey = (date = new Date()) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,"0")}`;
+  };
+
+  // Archivar semana actual a Firebase (historial permanente) y limpiar pedidos activos
+  const archivarSemana = async () => {
+    const weekKey = getWeekKey();
+    const entregadosSemana = pedidos.filter(p => p.estado === "entregado");
+    if(entregadosSemana.length === 0){ mostrarNotif("No hay entregas para archivar","err"); return; }
+
+    // Sumar por producto y por tienda
+    const resumenProductos = {};
+    const resumenTiendas = {};
+    entregadosSemana.forEach(p => {
+      resumenTiendas[p.tienda] = (resumenTiendas[p.tienda]||0) + p.productos.reduce((s,x)=>s+x.cantidad,0);
+      p.productos.forEach(prod => {
+        resumenProductos[prod.nombre] = (resumenProductos[prod.nombre]||0) + prod.cantidad;
+      });
+    });
+
+    await db.collection("historial_semanal").doc(weekKey).set({
+      weekKey,
+      fecha: new Date().toISOString(),
+      totalPedidos: entregadosSemana.length,
+      totalPiezas: Object.values(resumenProductos).reduce((a,b)=>a+b,0),
+      productos: resumenProductos,
+      tiendas: resumenTiendas
+    }, { merge: true });
+
+    // Borrar de Firestore los pedidos ya archivados
+    const batch = db.batch();
+    entregadosSemana.forEach(p => batch.delete(db.collection("pedidos").doc(p.id)));
+    await batch.commit();
+
+    mostrarNotif(`✅ Semana ${weekKey} archivada y limpiada`);
   };
 
   const exportarExcel = () => {
@@ -733,8 +855,8 @@ function App() {
               </div>
               <div style={s.stats} className="no-print">
                 <div style={s.sc}><div style={{...s.sn,color:"#f59e0b"}}>{pendientes.length}</div><div style={s.sl}>Pendientes</div></div>
-                <div style={s.sc}><div style={{...s.sn,color:"#10b981"}}>{entregados.length}</div><div style={s.sl}>Entregadas</div></div>
-                <div style={s.sc}><div style={{...s.sn,color:"#3b82f6"}}>{Object.values(totales).reduce((a,b)=>a+b,0)}</div><div style={s.sl}>Piezas x Entregar</div></div>
+                {usuario.id==="admin"&&<div style={s.sc}><div style={{...s.sn,color:"#10b981"}}>{entregados.length}</div><div style={s.sl}>Entregadas</div></div>}
+                {usuario.id==="admin"&&<div style={s.sc}><div style={{...s.sn,color:"#3b82f6"}}>{Object.values(totales).reduce((a,b)=>a+b,0)}</div><div style={s.sl}>Piezas x Entregar</div></div>}
               </div>
               <div style={s.card} id="hoja-desglose">
                 <div style={{textAlign:"center",marginBottom:13}}>
@@ -914,7 +1036,7 @@ function App() {
         })()}
 
         {/* ADMIN */}
-        {vista==="admin" && usuario.rol==="admin" && <AdminPanel usuario={usuario} usuarios={usuarios} mostrarNotif={mostrarNotif}/>}
+        {vista==="admin" && usuario.rol==="admin" && <AdminPanel usuario={usuario} usuarios={usuarios} mostrarNotif={mostrarNotif} historial={historial} archivarSemana={archivarSemana}/>}
 
       </main>
 
@@ -971,7 +1093,7 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.render(<App/>, document.getElementById("root"));
 </script>
 </body>
 </html>
