@@ -312,7 +312,7 @@ function AdminPanel({usuario, usuarios, mostrarNotif, historial, archivarSemana}
           {historial.length === 0
             ? <div style={s.empty}>Sin semanas archivadas aún</div>
             : (
-              <>
+              <div>
                 <div style={{overflowX:"auto",marginBottom:14}}>
                   <table style={{...s.tabla,fontSize:11}}>
                     <thead><tr style={{background:"#f8f7f4"}}>
@@ -365,7 +365,7 @@ function AdminPanel({usuario, usuarios, mostrarNotif, historial, archivarSemana}
                   XLSX.writeFile(wb, `Comparativo_Mensual_Vaquero.xlsx`);
                   mostrarNotif("✅ Excel comparativo descargado — selecciona datos e Insertar > Gráfica en Excel");
                 }}>📈 Descargar Comparativo Mensual (Excel)</button>
-              </>
+              </div>
             )
           }
         </div>
