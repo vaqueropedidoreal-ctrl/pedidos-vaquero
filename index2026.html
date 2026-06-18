@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pedidos Vaquero</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBvyoqnM0PWzYyFeOM94TG73gbcwlmYJVc",
+      authDomain: "pedidos-b45e5.firebaseapp.com",
+      projectId: "pedidos-b45e5",
+      storageBucket: "pedidos-b45e5.firebasestorage.app",
+      messagingSenderId: "834652063813",
+      appId: "1:834652063813:web:c8590908e76ed540da7b2c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Sora',sans-serif;background:#f8f7f4;}
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { background: white !important; }
+      header, .no-print, button { display: none !important; }
+      #hoja-desglose { box-shadow: none !important; border-radius: 0 !important; padding: 4px !important; }
+      #hoja-desglose table { font-size: 7.5px !important; width: 100% !important; }
+      #hoja-desglose th, #hoja-desglose td { padding: 2px 3px !important; }
+      @page { size: landscape; margin: 5mm; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TIENDAS = [
+  "DULFI TECNOLOGICO","DULFI BRISAS","DULFI SIGLO XXI","DULFI MARIANO",
+  "DULFI ATENAS","DULFI 5 Y 10","DULFI SANTA FE","DULFI LOMA BONITA",
+  "DULFI PINOS","DULFI OASIS","DULFI CASA BLANCA","DULFI SANTA ANITA",
+  "DULFI JIBARITO","DULFI LIMON","DULFI CENTRO","DULFI LAS FUENTES",
+  "DULFI DELICIAS","DULFI PORTICOS","DULFI PACIFICO","DULFI REFUGIO",
+  "DULFI DORADO","DULFI AMISTAD","DULFI RIO","DULFI FUNDADORES",
+  "DULFI VILLA DEL REAL","DULFI NATURA","DULFI BARCELONA","DULFI MACLOVIO",
+  "DULFI TECATE TANAMA","DULFI PORTICOS ENS","DULFI BAHIA ENS",
+  "DULFI SANTA LUCIA ENS","DULFI SENDERO ENS","DULFI ROSARITO",
+  "DULFI LAZARO MEXICALI","DULFI ANAHUAC MEXICALI","DULFI MEX. TELEVISORA",
+  "DULCERIA LA GLORIA",
+  "MEGA RIO","MEGA CENTRO","MEGA SOLER","MEGA MARIANO","MEGA ROSARITO",
+  "MEGA DORADO","MEGA LA MESA","MEGA VIA RAPIDA","MEGA SANTA FE",
+  "DULCES + DULCES","DON REGINO","DELICIAS","CANASTA LIBERTAD",
+  "CANASTA SOLER","CANASTA URBI","PAYASO","BODEGUITA",
+  "DULCE TAMARINDO RITO","CHICLON","LOLITAS","CORAL",
+  "CORAL CHAPULTEPEC","RAM REFORMA","RAM AMABAR","RAM MANEADERO",
+  "D FIESTA MANEADERO","DULCELANDIA","BODEGA","JANETH",
+  "VILLA DEL CAMPO","DULCERIA IZZA","DUKCERIA CANDY"
+];
+
+const PRODUCTOS = [
+  {id:1,nombre:"Churritos Vaqueros 12 pzas",unidad:"bulto"},
+  {id:2,nombre:"Churritos Vaqueros 24 pzas",unidad:"bulto"},
+  {id:3,nombre:"Churritos Vaquero Grueso 12 pzas",unidad:"bulto"},
+  {id:4,nombre:"Churritos Vaquero Grueso 24 pzas",unidad:"bulto"},
+  {id:5,nombre:"Churritos con Ajonjoli .800 grs",unidad:"bulto"},
+  {id:6,nombre:"Churrito Vaquero Enchilado",unidad:"bulto"},
+  {id:7,nombre:"Churro Loco Natural",unidad:"bulto"},
+  {id:8,nombre:"Churro Loco Enchilado",unidad:"bulto"},
+  {id:9,nombre:"Fritura Surtida Vaquero 20 pzas",unidad:"bulto"},
+  {id:10,nombre:"Fritura Surtida Vaquero 24 pzas",unidad:"bulto"},
+  {id:11,nombre:"Fritura Cuadro 10x10 Vaquero c/4",unidad:"bulto"},
+  {id:12,nombre:"Botana Natural Vaquero",unidad:"bulto"},
+  {id:13,nombre:"Botana con Chile Vaquero",unidad:"bulto"},
+  {id:14,nombre:"Corico de Maiz Vaquero",unidad:"bulto"},
+  {id:15,nombre:"Huarachito Bulto c/10 pzas",unidad:"bulto"},
+];
+
+const ESTADOS = {
+  pendiente: {label:"Pendiente",color:"#f59e0b",bg:"#fef3c7"},
+  confirmado:{label:"Confirmado",color:"#3b82f6",bg:"#dbeafe"},
+  en_carga:  {label:"En Carga",color:"#8b5cf6",bg:"#ede9fe"},
+  en_ruta:   {label:"En Ruta",color:"#f97316",bg:"#ffedd5"},
+  entregado: {label:"Entregado",color:"#10b981",bg:"#d1fae5"},
+};
+
+const RUTAS_MAP = {
+  "Ruta Norte TIJ":  ["DULFI TECNOLOGICO","DULFI BRISAS","DULFI SIGLO XXI","DULFI MARIANO","DULFI BARCELONA","DULFI MACLOVIO","DULFI NATURA","DULFI VILLA DEL REAL"],
+  "Ruta Centro TIJ": ["DULFI CENTRO","DULFI RIO","DULFI FUNDADORES","DULFI AMISTAD","DULFI DORADO","DULFI REFUGIO","DULFI PACIFICO","MEGA CENTRO","DULCERIA LA GLORIA"],
+  "Ruta Sur TIJ":    ["DULFI LOMA BONITA","DULFI SANTA FE","DULFI DELICIAS","DULFI PORTICOS","DULFI LAS FUENTES","DULFI JIBARITO","DULFI LIMON","MEGA SANTA FE"],
+  "Ruta Este TIJ":   ["DULFI ATENAS","DULFI 5 Y 10","DULFI PINOS","DULFI OASIS","DULFI CASA BLANCA","DULFI SANTA ANITA","MEGA LA MESA","MEGA DORADO","MEGA VIA RAPIDA"],
+  "Ruta Costera TIJ":["MEGA SOLER","MEGA RIO","MEGA MARIANO","DULFI ROSARITO","MEGA ROSARITO"],
+  "Ruta Ensenada":   ["DULFI PORTICOS ENS","DULFI BAHIA ENS","DULFI SANTA LUCIA ENS","DULFI SENDERO ENS","DULFI TECATE TANAMA","CORAL","CORAL CHAPULTEPEC","RAM REFORMA","RAM AMABAR","RAM MANEADERO","D FIESTA MANEADERO"],
+  "Ruta Mexicali":   ["DULFI LAZARO MEXICALI","DULFI ANAHUAC MEXICALI","DULFI MEX. TELEVISORA"],
+  "Otros Clientes":  ["DULCES + DULCES","DON REGINO","DELICIAS","CANASTA LIBERTAD","CANASTA SOLER","CANASTA URBI","PAYASO","BODEGUITA","DULCE TAMARINDO RITO","CHICLON","LOLITAS","DULCELANDIA","BODEGA","JANETH","VILLA DEL CAMPO","DULCERIA IZZA","DUKCERIA CANDY"],
+};
+
+const PERMISOS_LIST = [
+  ["hacer_pedidos","Hacer pedidos"],
+  ["cambios_devoluciones","Cambios y devoluciones"],
+  ["avanzar_estados","Avanzar estados"],
+  ["regresar_estados","Regresar estados"],
+  ["ver_almacen","Ver almacen"],
+  ["ver_logistica","Ver logistica"],
+  ["ver_rutas","Ver rutas"],
+  ["ver_desglose","Ver desglose"],
+  ["exportar_excel","Exportar Excel"],
+  ["imprimir","Imprimir"],
+  ["panel_admin","Panel Admin"],
+];
+
+const PERMISOS_ROL = {
+  admin:["hacer_pedidos","cambios_devoluciones","avanzar_estados","regresar_estados","ver_almacen","ver_logistica","ver_rutas","ver_desglose","exportar_excel","imprimir","panel_admin"],
+  almacen:["ver_almacen","avanzar_estados","regresar_estados","ver_logistica","ver_rutas","ver_desglose","imprimir"],
+  tienda:["hacer_pedidos","cambios_devoluciones"],
+  chofer:["ver_rutas","avanzar_estados"],
+};
+
+let counter = 1000;
+const genId = () => `DLF-${++counter}`;
+const genHora = () => new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+const getRuta = (tienda) => { for(const [r,ts] of Object.entries(RUTAS_MAP)) if(ts.includes(tienda)) return r; return "Por asignar"; };
+
+const s = {
+  root:{minHeight:"100vh",background:"#f8f7f4",fontFamily:"'Sora',sans-serif"},
+  header:{background:"#1a1a2e",padding:"12px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10},
+  logoT:{color:"#fbbf24",fontWeight:800,fontSize:16,letterSpacing:1},
+  logoS:{color:"#94a3b8",fontSize:10},
+  nav:{display:"flex",gap:5,flexWrap:"wrap"},
+  nb:{padding:"6px 12px",borderRadius:8,border:"none",background:"#ffffff18",color:"#cbd5e1",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:600},
+  nba:{background:"#fbbf24",color:"#1a1a2e"},
+  main:{padding:"14px",maxWidth:1200,margin:"0 auto"},
+  cols:{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"},
+  col:{flex:1,minWidth:270,display:"flex",flexDirection:"column",gap:12},
+  card:{background:"#fff",borderRadius:12,padding:16,boxShadow:"0 2px 10px #0001"},
+  ct:{fontWeight:800,fontSize:13,color:"#1a1a2e",marginBottom:12,paddingBottom:8,borderBottom:"2px solid #f3f4f6"},
+  sel:{width:"100%",padding:"9px 11px",borderRadius:8,border:"1.5px solid #e5e7eb",fontFamily:"inherit",fontSize:13,color:"#1a1a2e",background:"#f8f7f4"},
+  grid:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:9},
+  pc:{border:"1.5px solid #f3f4f6",borderRadius:10,padding:10,textAlign:"center"},
+  pn:{fontSize:11,fontWeight:700,color:"#374151",marginBottom:4},
+  pu:{fontSize:10,color:"#9ca3af",marginBottom:7},
+  ctrl:{display:"flex",alignItems:"center",justifyContent:"center",gap:7},
+  bm:{width:27,height:27,borderRadius:6,border:"none",background:"#fee2e2",color:"#dc2626",fontWeight:800,cursor:"pointer",fontSize:17},
+  bp:{width:27,height:27,borderRadius:6,border:"none",background:"#d1fae5",color:"#059669",fontWeight:800,cursor:"pointer",fontSize:17},
+  qty:{fontWeight:800,fontSize:14,minWidth:20,textAlign:"center",color:"#1a1a2e"},
+  ctienda:{background:"#fef3c7",color:"#92400e",borderRadius:8,padding:"7px 11px",fontSize:12,fontWeight:700,marginBottom:7},
+  rutaTag:{background:"#ede9fe",color:"#5b21b6",borderRadius:8,padding:"7px 11px",fontSize:11,marginBottom:11},
+  empty:{color:"#9ca3af",fontSize:13,textAlign:"center",padding:"18px 0"},
+  ci:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f3f4f6",fontSize:12,color:"#374151"},
+  bwsp:{width:"100%",marginTop:11,padding:"11px",borderRadius:9,border:"none",background:"#1a1a2e",color:"#fbbf24",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit"},
+  pr:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f3f4f6",cursor:"pointer"},
+  pid:{fontWeight:700,fontSize:12,color:"#1a1a2e"},
+  ph:{fontSize:10,color:"#9ca3af"},
+  badge:{display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:11,fontWeight:700},
+  stats:{display:"flex",gap:11,marginBottom:14,flexWrap:"wrap"},
+  sc:{flex:1,minWidth:100,background:"#fff",borderRadius:11,padding:14,textAlign:"center",boxShadow:"0 2px 7px #0001"},
+  sn:{fontSize:30,fontWeight:900},
+  sl:{fontSize:11,color:"#6b7280",fontWeight:600,marginTop:3},
+  tabla:{width:"100%",borderCollapse:"collapse"},
+  th:{padding:"9px 11px",textAlign:"left",fontSize:11,fontWeight:700,color:"#6b7280",borderBottom:"2px solid #f3f4f6"},
+  td:{padding:"9px 11px",fontSize:12,color:"#374151",verticalAlign:"middle"},
+  ba:{padding:"5px 10px",borderRadius:6,border:"none",background:"#e0e7ff",color:"#4338ca",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11},
+  br:{padding:"5px 10px",borderRadius:6,border:"none",background:"#fee2e2",color:"#dc2626",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11},
+  rc:{marginBottom:11,padding:13,borderRadius:9,background:"#f8f7f4"},
+  rh:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7},
+  rn:{fontWeight:800,fontSize:13},
+  rcho:{fontSize:11,color:"#6b7280",marginTop:2},
+  rcnt:{background:"#1a1a2e",color:"#fbbf24",borderRadius:20,padding:"2px 9px",fontSize:10,fontWeight:700},
+  rt:{display:"flex",flexWrap:"wrap",gap:5},
+  rtag:{background:"#fff",border:"1px solid #e5e7eb",borderRadius:5,padding:"2px 7px",fontSize:10,color:"#374151"},
+  tr2:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid #f3f4f6"},
+  tn:{fontSize:11,fontWeight:600,color:"#374151"},
+  ov:{position:"fixed",inset:0,background:"#0008",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"},
+  modal:{background:"#fff",borderRadius:14,padding:22,minWidth:300,maxWidth:440,width:"92%",maxHeight:"80vh",overflowY:"auto"},
+  notif:{position:"fixed",top:16,right:16,zIndex:200,padding:"11px 18px",borderRadius:9,fontWeight:700,fontSize:12,boxShadow:"0 4px 18px #0002"},
+  btnExcel:{padding:"6px 13px",borderRadius:7,border:"none",background:"#16a34a",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"},
+};
+
+// ===== ADMIN PANEL COMPONENT =====
+function AdminPanel({usuario, usuarios, mostrarNotif}) {
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoPass, setNuevoPass] = useState("");
+  const [nuevoRol, setNuevoRol] = useState("tienda");
+  const [nuevoPermisos, setNuevoPermisos] = useState([...PERMISOS_ROL.tienda]);
+  const [editando, setEditando] = useState(null);
+  const [editData, setEditData] = useState({});
+
+  const agregarUsuario = () => {
+    if(!nuevoNombre||!nuevoPass){mostrarNotif("Completa nombre y contrasena","err");return;}
+    const id = nuevoNombre.toLowerCase().replace(/[^a-z0-9]/g,"_")+Date.now();
+    db.collection("usuarios").doc(id).set({nombre:nuevoNombre,password:nuevoPass,rol:nuevoRol,permisos:nuevoPermisos});
+    setNuevoNombre(""); setNuevoPass(""); setNuevoRol("tienda"); setNuevoPermisos([...PERMISOS_ROL.tienda]);
+    mostrarNotif("Usuario "+nuevoNombre+" agregado");
+  };
+
+  const eliminarUsuario = (id) => {
+    if(id==="admin"){mostrarNotif("No puedes eliminar al admin","err");return;}
+    db.collection("usuarios").doc(id).delete();
+    mostrarNotif("Usuario eliminado");
+  };
+
+  const iniciarEdicion = (u) => {
+    setEditando(u.id);
+    setEditData({nombre:u.nombre,password:u.password,rol:u.rol,permisos:[...(u.permisos||PERMISOS_ROL[u.rol]||[])]});
+  };
+
+  const guardarEdicion = () => {
+    db.collection("usuarios").doc(editando).update(editData);
+    setEditando(null);
+    mostrarNotif("Usuario actualizado");
+  };
+
+  const coloresRol = {admin:"#dc2626",almacen:"#8b5cf6",chofer:"#f97316",tienda:"#3b82f6"};
+
+  return (
+    <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-start"}}>
+      <div style={{flex:1,minWidth:280}}>
+        <div style={s.card}>
+          <div style={s.ct}>Agregar Usuario</div>
+          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:11}}>
+            <input type="text" placeholder="Nombre completo" style={{...s.sel,padding:"8px 11px"}} value={nuevoNombre} onChange={e=>setNuevoNombre(e.target.value)}/>
+            <input type="text" placeholder="Contrasena" style={{...s.sel,padding:"8px 11px"}} value={nuevoPass} onChange={e=>setNuevoPass(e.target.value)}/>
+            <select style={{...s.sel,padding:"8px 11px"}} value={nuevoRol} onChange={e=>{setNuevoRol(e.target.value);setNuevoPermisos([...(PERMISOS_ROL[e.target.value]||[])]);} }>
+              <option value="tienda">Tienda</option>
+              <option value="almacen">Almacen</option>
+              <option value="chofer">Chofer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div style={{fontWeight:700,fontSize:11,color:"#374151",marginBottom:7}}>Permisos:</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:11}}>
+            {PERMISOS_LIST.map(([key,label])=>(
+              <div key={key} onClick={()=>setNuevoPermisos(prev=>prev.includes(key)?prev.filter(p=>p!==key):[...prev,key])}
+                style={{padding:"3px 9px",borderRadius:20,fontSize:10,fontWeight:600,cursor:"pointer",background:nuevoPermisos.includes(key)?"#1a1a2e":"#f3f4f6",color:nuevoPermisos.includes(key)?"#fbbf24":"#6b7280"}}>
+                {label}
+              </div>
+            ))}
+          </div>
+          <button style={s.bwsp} onClick={agregarUsuario}>+ Agregar Usuario</button>
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:280}}>
+        <div style={s.card}>
+          <div style={s.ct}>Usuarios ({usuarios.length})</div>
+          {usuarios.map(u=>(
+            <div key={u.id} style={{padding:"10px 0",borderBottom:"1px solid #f3f4f6"}}>
+              {editando===u.id ? (
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <input type="text" style={{...s.sel,padding:"6px 9px",fontSize:12}} value={editData.nombre} onChange={e=>setEditData(d=>({...d,nombre:e.target.value}))}/>
+                  <input type="text" placeholder="Nueva contrasena" style={{...s.sel,padding:"6px 9px",fontSize:12}} value={editData.password} onChange={e=>setEditData(d=>({...d,password:e.target.value}))}/>
+                  <select style={{...s.sel,padding:"6px 9px",fontSize:12}} value={editData.rol} onChange={e=>setEditData(d=>({...d,rol:e.target.value,permisos:[...(PERMISOS_ROL[e.target.value]||[])]}))}>
+                    <option value="tienda">Tienda</option>
+                    <option value="almacen">Almacen</option>
+                    <option value="chofer">Chofer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                    {PERMISOS_LIST.map(([key,label])=>(
+                      <div key={key} onClick={()=>setEditData(d=>({...d,permisos:d.permisos.includes(key)?d.permisos.filter(p=>p!==key):[...d.permisos,key]}))}
+                        style={{padding:"2px 7px",borderRadius:20,fontSize:9,fontWeight:600,cursor:"pointer",background:editData.permisos.includes(key)?"#1a1a2e":"#f3f4f6",color:editData.permisos.includes(key)?"#fbbf24":"#6b7280"}}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:5,marginTop:5}}>
+                    <button style={{...s.bwsp,marginTop:0,flex:1,padding:"7px"}} onClick={guardarEdicion}>Guardar</button>
+                    <button style={{...s.br,flex:1}} onClick={()=>setEditando(null)}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:12,color:"#1a1a2e"}}>{u.nombre}</div>
+                    <div style={{fontSize:10,marginTop:2}}>
+                      <span style={{fontWeight:700,color:coloresRol[u.rol]||"#374151"}}>{u.rol}</span>
+                      <span style={{color:"#9ca3af"}}> · Clave: {u.password}</span>
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:2,marginTop:3}}>
+                      {(u.permisos||PERMISOS_ROL[u.rol]||[]).map(p=>{ const l=PERMISOS_LIST.find(x=>x[0]===p); return l?<span key={p} style={{background:"#f3f4f6",borderRadius:20,padding:"1px 6px",fontSize:9,color:"#374151"}}>{l[1]}</span>:null; })}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:3}}>
+                    <button style={{...s.ba,fontSize:10,padding:"3px 7px"}} onClick={()=>iniciarEdicion(u)}>Editar</button>
+                    {u.id!=="admin"&&<button style={{...s.br,fontSize:10,padding:"3px 7px"}} onClick={()=>eliminarUsuario(u.id)}>X</button>}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== MAIN APP =====
+function App() {
+  const [vista, setVista] = useState("tienda");
+  const [tienda, setTienda] = useState(TIENDAS[0]);
+  const [carrito, setCarrito] = useState({});
+  const [pedidos, setPedidos] = useState([]);
+  const [cambios, setCambios] = useState([]);
+  const [notif, setNotif] = useState(null);
+  const [detalle, setDetalle] = useState(null);
+  const [editPedido, setEditPedido] = useState(null);
+  const [editProds, setEditProds] = useState([]);
+  const hoy = new Date().toISOString().split("T")[0];
+  const [fechaFiltro, setFechaFiltro] = useState(hoy);
+  const [envioTiendas, setEnvioTiendas] = useState([]);
+  const [envioIniciado, setEnvioIniciado] = useState(false);
+  const [tipoCambio, setTipoCambio] = useState("devolucion");
+  const [notaCambio, setNotaCambio] = useState("");
+  const [itemsCambio, setItemsCambio] = useState([]);
+  const [prodTemp, setProdTemp] = useState("");
+  const [cantTemp, setCantTemp] = useState(1);
+  const [usuario, setUsuario] = useState(null);
+  const [usuarios, setUsuarios] = useState([{id:"admin",nombre:"Edgar (Admin)",password:"vaquero2024",rol:"admin"}]);
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  useEffect(()=>{
+    const unsubP = db.collection("pedidos").orderBy("timestamp","desc").onSnapshot(snap=>{
+      setPedidos(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    const unsubC = db.collection("cambios").orderBy("timestamp","desc").onSnapshot(snap=>{
+      setCambios(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    const unsubU = db.collection("usuarios").onSnapshot(snap=>{
+      if(snap.docs.length>0) setUsuarios(snap.docs.map(d=>({id:d.id,...d.data()})));
+      else db.collection("usuarios").doc("admin").set({nombre:"Edgar (Admin)",password:"vaquero2024",rol:"admin",permisos:PERMISOS_ROL.admin});
+    });
+    return ()=>{ unsubP(); unsubC(); unsubU(); };
+  },[]);
+
+  const mostrarNotif = (msg,tipo="ok")=>{ setNotif({msg,tipo}); setTimeout(()=>setNotif(null),3200); };
+
+  const handleLogin = () => {
+    const u = usuarios.find(x=>x.nombre.toLowerCase().includes(loginUser.toLowerCase())&&x.password===loginPass);
+    if(u){ setUsuario(u); setLoginError(""); } else setLoginError("Usuario o contrasena incorrectos");
+  };
+
+  // LOGIN SCREEN
+  if(!usuario) return (
+    <div style={{minHeight:"100vh",background:"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Sora',sans-serif"}}>
+      <div style={{background:"#fff",borderRadius:14,padding:32,width:"90%",maxWidth:360,boxShadow:"0 8px 40px #0004"}}>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{fontSize:36,marginBottom:7}}>🤠</div>
+          <div style={{fontWeight:900,fontSize:20,color:"#1a1a2e",letterSpacing:2}}>PEDIDOS VAQUERO</div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Mashari S.A. de C.V.</div>
+        </div>
+        <div style={{marginBottom:11}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:3}}>Usuario</div>
+          <input type="text" placeholder="Tu nombre" style={{width:"100%",padding:"9px 11px",borderRadius:7,border:"1.5px solid #e5e7eb",fontFamily:"inherit",fontSize:13}} value={loginUser} onChange={e=>setLoginUser(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+        </div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:3}}>Contrasena</div>
+          <input type="password" placeholder="..." style={{width:"100%",padding:"9px 11px",borderRadius:7,border:"1.5px solid #e5e7eb",fontFamily:"inherit",fontSize:13}} value={loginPass} onChange={e=>setLoginPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+        </div>
+        {loginError&&<div style={{color:"#dc2626",fontSize:11,marginBottom:11,textAlign:"center"}}>{loginError}</div>}
+        <button style={{...s.bwsp,marginTop:0}} onClick={handleLogin}>Entrar</button>
+      </div>
+    </div>
+  );
+
+  const add = (p)=>setCarrito(c=>({...c,[p.id]:(c[p.id]||0)+1}));
+  const sub = (p)=>setCarrito(c=>{ const n={...c}; if(n[p.id]>1)n[p.id]--; else delete n[p.id]; return n; });
+  const total = Object.values(carrito).reduce((a,b)=>a+b,0);
+
+  const enviar = async () => {
+    const items = Object.entries(carrito).map(([id,cantidad])=>{ const p=PRODUCTOS.find(x=>x.id===parseInt(id)); return {nombre:p.nombre,unidad:p.unidad,cantidad}; });
+    if(!items.length){mostrarNotif("Agrega productos","err");return;}
+    const hora=genHora(), ruta=getRuta(tienda);
+    const nuevo={tienda,hora,estado:"pendiente",productos:items.map(i=>({nombre:i.nombre,cantidad:i.cantidad})),chofer:"Sin asignar",ruta,creadoPor:usuario.nombre,timestamp:firebase.firestore.FieldValue.serverTimestamp()};
+    await db.collection("pedidos").add(nuevo);
+    setCarrito({});
+    const lineas=items.map(i=>"- "+i.nombre+" x"+i.cantidad).join("\n");
+    const msg="PEDIDO VAQUERO\n"+tienda+"\n"+hora+"\n\n"+lineas+"\n\nRuta: "+ruta;
+    navigator.clipboard.writeText(msg).catch(()=>{});
+    mostrarNotif("Pedido enviado a "+ruta);
+  };
+
+  const avanzar = (pid) => {
+    const orden=["pendiente","confirmado","en_carga","en_ruta","entregado"];
+    const p=pedidos.find(x=>x.id===pid); if(!p)return;
+    const next=orden[Math.min(orden.indexOf(p.estado)+1,orden.length-1)];
+    const hora=genHora();
+    db.collection("pedidos").doc(pid).update({estado:next,ultimaActualizacion:{usuario:usuario.nombre,accion:"-> "+ESTADOS[next].label,hora}});
+  };
+
+  const regresar = (pid) => {
+    const orden=["pendiente","confirmado","en_carga","en_ruta","entregado"];
+    const p=pedidos.find(x=>x.id===pid); if(!p)return;
+    const prev=orden[Math.max(orden.indexOf(p.estado)-1,0)];
+    const hora=genHora();
+    db.collection("pedidos").doc(pid).update({estado:prev,ultimaActualizacion:{usuario:usuario.nombre,accion:"<- "+ESTADOS[prev].label,hora}});
+    mostrarNotif("Regresado a "+ESTADOS[prev].label);
+  };
+
+  const abrirEdicion = (pid) => {
+    const p=pedidos.find(x=>x.id===pid); if(!p)return;
+    setEditPedido(p); setEditProds((p.productos||[]).map(x=>({...x})));
+  };
+
+  const guardarEdicionPedido = () => {
+    const hora=genHora();
+    db.collection("pedidos").doc(editPedido.id).update({productos:editProds.filter(x=>x.cantidad>0),ultimaActualizacion:{usuario:usuario.nombre,accion:"Pedido editado",hora}});
+    setEditPedido(null); mostrarNotif("Pedido actualizado");
+  };
+
+  const iniciarModoEnvio = () => {
+    const td=pedidos.filter(p=>p.estado!=="entregado").map(p=>({id:p.id,tienda:p.tienda,ruta:p.ruta||"Sin ruta",activa:true,productos:(p.productos||[]).map(pr=>({...pr,tachado:false}))}));
+    setEnvioTiendas(td); setEnvioIniciado(true);
+  };
+
+  const exportarExcel = () => {
+    const fecha=new Date().toLocaleDateString("es-MX");
+    const pendientes=pedidos.filter(p=>p.estado!=="entregado");
+    const prodUsados=[...new Set(pedidos.flatMap(p=>p.productos.map(x=>x.nombre)))];
+    const headerRow=["#","DULCERIA","RUTA",...prodUsados,"ESTADO","CAMBIOS"];
+    const dataRows=pendientes.map((p,i)=>{
+      const row=[i+1,p.tienda.replace("DULFI ","").replace("MEGA ",""),p.ruta];
+      prodUsados.forEach(prod=>{const f=p.productos.find(x=>x.nombre===prod);row.push(f?f.cantidad:"");});
+      row.push(ESTADOS[p.estado].label);
+      const camb=cambios.filter(x=>x.tienda===p.tienda);
+      row.push(camb.length>0?camb.map(x=>x.tipo.toUpperCase()+": "+x.productos.map(pr=>pr.producto+" x"+pr.cantidad).join(", ")).join(" | "):"");
+      return row;
+    });
+    const totalesRow=["","TOTAL","",...prodUsados.map(prod=>pendientes.reduce((sum,p)=>{const f=p.productos.find(x=>x.nombre===prod);return sum+(f?f.cantidad:0);},0)),"",""];
+    const ws=XLSX.utils.aoa_to_sheet([headerRow,...dataRows,totalesRow]);
+    ws["!cols"]=[{wch:4},{wch:18},{wch:16},...prodUsados.map(()=>({wch:10})),{wch:12},{wch:40}];
+    const rowsPedidos=pedidos.flatMap(p=>p.productos.map(prod=>({"Fecha":fecha,"Tienda":p.tienda,"Hora":p.hora,"Producto":prod.nombre,"Cantidad":prod.cantidad,"Estado":ESTADOS[p.estado].label,"Ruta":p.ruta,"Creado por":p.creadoPor||""})));
+    const wsPedidos=XLSX.utils.json_to_sheet(rowsPedidos);
+    const rowsCambios=cambios.flatMap(x=>x.productos.map(p=>({"Fecha":fecha,"Hora":x.hora,"Tienda":x.tienda,"Tipo":x.tipo.toUpperCase(),"Producto":p.producto,"Cantidad":p.cantidad,"Nota":x.nota||"","Por":x.registradoPor||""})));
+    const wsCambios=XLSX.utils.json_to_sheet(rowsCambios.length?rowsCambios:[{"Fecha":"Sin registros"}]);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Desglose Tijuana");
+    XLSX.utils.book_append_sheet(wb,wsPedidos,"Pedidos Detalle");
+    XLSX.utils.book_append_sheet(wb,wsCambios,"Cambios y Devoluciones");
+    XLSX.writeFile(wb,"Desglose_Vaquero_"+fecha.replace(/\//g,"-")+".xlsx");
+    mostrarNotif("Excel descargado - 3 hojas");
+  };
+
+  const pedidosFiltrados = fechaFiltro==="todos"
+    ? pedidos.filter(p=>p.estado!=="entregado")
+    : pedidos.filter(p=>{
+        if(!p.timestamp) return true;
+        try{ const f=p.timestamp.toDate?p.timestamp.toDate().toISOString().split("T")[0]:hoy; return f===fechaFiltro; }
+        catch(e){ return true; }
+      });
+
+  const Btn = ({pid,estado}) => (
+    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+      {estado!=="entregado"&&<button style={s.ba} onClick={()=>avanzar(pid)}>Avanzar</button>}
+      {estado!=="pendiente"&&<button style={s.br} onClick={()=>regresar(pid)}>Regresar</button>}
+    </div>
+  );
+
+  const RUTAS_CONFIG = [
+    {ruta:"Ruta Norte TIJ",chofer:"Ramon Gutierrez",color:"#3b82f6",tiendas:["DULFI TECNOLOGICO","DULFI BRISAS","DULFI SIGLO XXI","DULFI MARIANO","DULFI BARCELONA","DULFI MACLOVIO","DULFI NATURA","DULFI VILLA DEL REAL"]},
+    {ruta:"Ruta Centro TIJ",chofer:"Carlos Mendez",color:"#f59e0b",tiendas:["DULFI CENTRO","DULFI RIO","DULFI FUNDADORES","DULFI AMISTAD","DULFI DORADO","DULFI REFUGIO","DULFI PACIFICO","MEGA CENTRO","DULCERIA LA GLORIA"]},
+    {ruta:"Ruta Sur TIJ",chofer:"Miguel Torres",color:"#10b981",tiendas:["DULFI LOMA BONITA","DULFI SANTA FE","DULFI DELICIAS","DULFI PORTICOS","DULFI LAS FUENTES","DULFI JIBARITO","DULFI LIMON","MEGA SANTA FE"]},
+    {ruta:"Ruta Este TIJ",chofer:"Jesus Pacheco",color:"#8b5cf6",tiendas:["DULFI ATENAS","DULFI 5 Y 10","DULFI PINOS","DULFI OASIS","DULFI CASA BLANCA","DULFI SANTA ANITA","MEGA LA MESA","MEGA DORADO","MEGA VIA RAPIDA"]},
+    {ruta:"Ruta Costera TIJ",chofer:"Luis Morales",color:"#f97316",tiendas:["MEGA SOLER","MEGA RIO","MEGA MARIANO","DULFI ROSARITO","MEGA ROSARITO"]},
+    {ruta:"Ruta Ensenada",chofer:"Por asignar",color:"#06b6d4",tiendas:["DULFI PORTICOS ENS","DULFI BAHIA ENS","DULFI SANTA LUCIA ENS","DULFI SENDERO ENS","DULFI TECATE TANAMA","CORAL","CORAL CHAPULTEPEC","RAM REFORMA","RAM AMABAR","RAM MANEADERO","D FIESTA MANEADERO"]},
+    {ruta:"Ruta Mexicali",chofer:"Por asignar",color:"#ec4899",tiendas:["DULFI LAZARO MEXICALI","DULFI ANAHUAC MEXICALI","DULFI MEX. TELEVISORA"]},
+    {ruta:"Otros Clientes",chofer:"Por asignar",color:"#64748b",tiendas:["DULCES + DULCES","DON REGINO","DELICIAS","CANASTA LIBERTAD","CANASTA SOLER","CANASTA URBI","PAYASO","BODEGUITA","DULCE TAMARINDO RITO","CHICLON","LOLITAS","DULCELANDIA","BODEGA","JANETH","VILLA DEL CAMPO","DULCERIA IZZA","DUKCERIA CANDY"]},
+  ];
+
+  const tabs = [{k:"tienda",l:"Tienda"},{k:"almacen",l:"Almacen"},{k:"logistica",l:"Logistica"},{k:"rutas",l:"Rutas"},{k:"desglose",l:"Desglose"},{k:"envio",l:"Modo Envio"}];
+  if(usuario.rol==="admin") tabs.push({k:"admin",l:"Admin"});
+
+  return (
+    <div style={s.root}>
+      {notif&&<div style={{...s.notif,background:notif.tipo==="err"?"#fee2e2":"#d1fae5",color:notif.tipo==="err"?"#dc2626":"#065f46"}}>{notif.msg}</div>}
+
+      <header style={s.header}>
+        <div>
+          <div style={s.logoT}>PEDIDOS VAQUERO</div>
+          <div style={s.logoS}>Mashari S.A. de C.V. Tijuana B.C.</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{color:"#fbbf24",fontSize:11,fontWeight:700}}>{usuario.nombre}</div>
+          <div style={{background:"#ffffff18",color:"#94a3b8",borderRadius:20,padding:"2px 8px",fontSize:10}}>{usuario.rol}</div>
+          <button style={{...s.br,fontSize:10}} onClick={()=>setUsuario(null)}>Salir</button>
+        </div>
+        <nav style={s.nav} className="no-print">
+          {tabs.map(v=><button key={v.k} style={{...s.nb,...(vista===v.k?s.nba:{})}} onClick={()=>setVista(v.k)}>{v.l}</button>)}
+        </nav>
+      </header>
+
+      <main style={s.main}>
+
+        {/* TIENDA */}
+        {vista==="tienda" && (
+          <div style={s.cols}>
+            <div style={s.col}>
+              <div style={s.card}>
+                <div style={s.ct}>Seleccionar Dulceria</div>
+                <select style={s.sel} value={tienda} onChange={e=>setTienda(e.target.value)}>
+                  {TIENDAS.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div style={s.card}>
+                <div style={s.ct}>Catalogo de Productos</div>
+                <div style={s.grid}>
+                  {PRODUCTOS.map(p=>(
+                    <div key={p.id} style={s.pc}>
+                      <div style={s.pn}>{p.nombre}</div>
+                      <div style={s.pu}>{p.unidad}</div>
+                      <div style={s.ctrl}>
+                        <button style={s.bm} onClick={()=>sub(p)}>-</button>
+                        <input type="number" min="0" style={{width:46,textAlign:"center",fontWeight:800,fontSize:14,border:"1.5px solid #e5e7eb",borderRadius:5,padding:"2px 3px",fontFamily:"inherit",color:"#1a1a2e"}} value={carrito[p.id]||0} onChange={e=>{const v=parseInt(e.target.value)||0;if(v<=0)setCarrito(c=>{const n={...c};delete n[p.id];return n;});else setCarrito(c=>({...c,[p.id]:v}));}}/>
+                        <button style={s.bp} onClick={()=>add(p)}>+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{...s.col,maxWidth:310}}>
+              <div style={s.card}>
+                <div style={s.ct}>Pedido Actual</div>
+                <div style={s.ctienda}>{tienda}</div>
+                <div style={s.rutaTag}>Ruta sugerida: {getRuta(tienda)}</div>
+                {!Object.keys(carrito).length?<div style={s.empty}>Sin productos aun</div>:Object.entries(carrito).map(([id,qty])=>{const p=PRODUCTOS.find(x=>x.id===parseInt(id));return <div key={id} style={s.ci}><span>{p.nombre}</span><strong>{qty} bultos</strong></div>;})}
+                <button style={s.bwsp} onClick={enviar}>Enviar a Almacen ({total} bultos)</button>
+              </div>
+              <div style={s.card}>
+                <div style={s.ct}>Cambios / Devoluciones</div>
+                <div style={{display:"flex",gap:5,marginBottom:7}}>
+                  <select style={{...s.sel,flex:1,padding:"6px 7px",fontSize:11}} value={tipoCambio} onChange={e=>setTipoCambio(e.target.value)}>
+                    <option value="devolucion">Devolucion</option>
+                    <option value="cambio">Cambio</option>
+                    <option value="faltante">Faltante</option>
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:5,marginBottom:7}}>
+                  <select style={{...s.sel,flex:1,padding:"6px 7px",fontSize:11}} value={prodTemp} onChange={e=>setProdTemp(e.target.value)}>
+                    <option value="">- Producto -</option>
+                    {PRODUCTOS.map(p=><option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                  </select>
+                  <input type="number" min="1" style={{width:50,textAlign:"center",fontWeight:700,border:"1.5px solid #e5e7eb",borderRadius:7,padding:"6px 3px",fontFamily:"inherit"}} value={cantTemp} onChange={e=>setCantTemp(parseInt(e.target.value)||1)}/>
+                  <button style={{...s.bp,width:32,height:32,borderRadius:7,fontSize:18,flexShrink:0}} onClick={()=>{if(!prodTemp)return;const ex=itemsCambio.find(x=>x.producto===prodTemp);if(ex)setItemsCambio(prev=>prev.map(x=>x.producto===prodTemp?{...x,cantidad:x.cantidad+cantTemp}:x));else setItemsCambio(prev=>[...prev,{producto:prodTemp,cantidad:cantTemp}]);setProdTemp("");setCantTemp(1);}}>+</button>
+                </div>
+                {itemsCambio.length>0&&(
+                  <div style={{background:"#f8f7f4",borderRadius:7,padding:"7px 9px",marginBottom:7}}>
+                    {itemsCambio.map((x,i)=>(
+                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,padding:"2px 0",borderBottom:"1px solid #e5e7eb"}}>
+                        <span>{x.producto} x{x.cantidad}</span>
+                        <button style={{border:"none",background:"none",color:"#dc2626",cursor:"pointer",fontSize:13,fontWeight:800}} onClick={()=>setItemsCambio(prev=>prev.filter((_,j)=>j!==i))}>x</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input type="text" placeholder="Nota (opcional)" style={{...s.sel,padding:"6px 9px",fontSize:11,marginBottom:7}} value={notaCambio} onChange={e=>setNotaCambio(e.target.value)}/>
+                <button style={{...s.bwsp,marginTop:0,background:"#f97316"}} onClick={()=>{
+                  if(!itemsCambio.length){mostrarNotif("Agrega productos","err");return;}
+                  const reg={tipo:tipoCambio,tienda,hora:genHora(),productos:itemsCambio,nota:notaCambio,registradoPor:usuario.nombre,timestamp:firebase.firestore.FieldValue.serverTimestamp()};
+                  db.collection("cambios").add(reg);
+                  setItemsCambio([]);setNotaCambio("");setProdTemp("");setCantTemp(1);
+                  mostrarNotif(tipoCambio+" registrado");
+                }}>Registrar ({itemsCambio.length} productos)</button>
+                {cambios.filter(x=>x.tienda===tienda).length>0&&(
+                  <div style={{marginTop:11}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f97316",marginBottom:5}}>Registros de {tienda.replace("DULFI ","").replace("MEGA ","")}:</div>
+                    {cambios.filter(x=>x.tienda===tienda).map(x=>(
+                      <div key={x.id} style={{padding:"6px 0",borderBottom:"1px solid #f3f4f6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontWeight:700,fontSize:11,color:x.tipo==="devolucion"?"#dc2626":x.tipo==="cambio"?"#3b82f6":"#f59e0b"}}>{x.tipo.toUpperCase()}</span>
+                          <span style={{fontSize:10,color:"#9ca3af"}}>{x.hora}</span>
+                        </div>
+                        {x.productos.map((p,i)=><div key={i} style={{fontSize:10,color:"#374151",paddingLeft:7}}>- {p.producto} x{p.cantidad}</div>)}
+                        {x.nota&&<div style={{fontSize:10,color:"#9ca3af",paddingLeft:7}}>{x.nota}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={s.card}>
+                <div style={s.ct}>Mis Pedidos Recientes</div>
+                {pedidosFiltrados.filter(p=>p.tienda===tienda).slice(0,5).length===0?<div style={s.empty}>Sin pedidos hoy</div>:pedidosFiltrados.filter(p=>p.tienda===tienda).slice(0,5).map(p=>(
+                  <div key={p.id} style={s.pr} onClick={()=>setDetalle(p)}>
+                    <div><div style={s.pid}>{p.id}</div><div style={s.ph}>{p.hora}</div></div>
+                    <span style={{...s.badge,background:ESTADOS[p.estado].bg,color:ESTADOS[p.estado].color}}>{ESTADOS[p.estado].label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ALMACEN */}
+        {vista==="almacen" && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14,background:"#fff",borderRadius:11,padding:"11px 14px",boxShadow:"0 2px 7px #0001",flexWrap:"wrap"}} className="no-print">
+              <div style={{fontWeight:700,fontSize:12,color:"#1a1a2e"}}>Fecha:</div>
+              <input type="date" value={fechaFiltro==="todos"?"":fechaFiltro} style={{padding:"5px 11px",borderRadius:7,border:"1.5px solid #e5e7eb",fontFamily:"inherit",fontSize:12}} onChange={e=>setFechaFiltro(e.target.value)}/>
+              <button style={{...s.ba,fontSize:11}} onClick={()=>setFechaFiltro(hoy)}>Hoy</button>
+              <button style={{...s.ba,fontSize:11,background:fechaFiltro==="todos"?"#fee2e2":"#fef3c7",color:fechaFiltro==="todos"?"#dc2626":"#92400e"}} onClick={()=>setFechaFiltro("todos")}>Ver todos pendientes</button>
+              <div style={{fontSize:11,color:"#6b7280"}}>{pedidosFiltrados.length} pedidos</div>
+            </div>
+            <div style={s.stats}>
+              {[{l:"Pendientes",v:pedidosFiltrados.filter(p=>p.estado==="pendiente").length,c:"#f59e0b"},{l:"En Carga",v:pedidosFiltrados.filter(p=>p.estado==="en_carga").length,c:"#8b5cf6"},{l:"En Ruta",v:pedidosFiltrados.filter(p=>p.estado==="en_ruta").length,c:"#f97316"},{l:"Entregados",v:pedidosFiltrados.filter(p=>p.estado==="entregado").length,c:"#10b981"}].map(x=>(
+                <div key={x.l} style={s.sc}><div style={{...s.sn,color:x.c}}>{x.v}</div><div style={s.sl}>{x.l}</div></div>
+              ))}
+            </div>
+            <div style={s.card}>
+              <div style={{marginBottom:11,paddingBottom:8,borderBottom:"2px solid #f3f4f6"}}>
+                <div style={{fontWeight:800,fontSize:13,color:"#1a1a2e"}}>Cola de Pedidos - Almacen Central</div>
+              </div>
+              {pedidosFiltrados.length===0?<div style={s.empty}>Sin pedidos para esta fecha</div>:
+              <div style={{overflowX:"auto"}}>
+                <table style={s.tabla}>
+                  <thead><tr style={{background:"#f8f7f4"}}>
+                    {["Tienda","Hora","Creado por","Ultima accion","Productos","Ruta","Estado","Accion"].map(h=><th key={h} style={s.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {pedidosFiltrados.map(p=>(
+                      <tr key={p.id} style={{borderBottom:"1px solid #f3f4f6"}}>
+                        <td style={s.td}>{p.tienda}</td>
+                        <td style={s.td}>{p.hora}</td>
+                        <td style={s.td}><span style={{fontSize:10,color:"#6b7280"}}>{p.creadoPor||"-"}</span></td>
+                        <td style={s.td}>{p.ultimaActualizacion?<span style={{fontSize:10}}>{p.ultimaActualizacion.usuario}<br/><span style={{color:"#9ca3af"}}>{p.ultimaActualizacion.accion}</span></span>:<span style={{fontSize:10,color:"#9ca3af"}}>Sin cambios</span>}</td>
+                        <td style={s.td}><span style={{fontSize:11}}>{p.productos.map(x=>x.nombre+" x"+x.cantidad).join(", ")}</span></td>
+                        <td style={s.td}><span style={{fontSize:10,color:"#6b7280"}}>{p.ruta}</span></td>
+                        <td style={s.td}>
+                          <span style={{...s.badge,background:ESTADOS[p.estado].bg,color:ESTADOS[p.estado].color}}>{ESTADOS[p.estado].label}</span>
+                          {p.estado!=="entregado"&&<div style={{marginTop:3}}><button style={{...s.ba,background:"#fef3c7",color:"#92400e",fontSize:10,padding:"2px 7px"}} onClick={()=>abrirEdicion(p.id)}>Editar</button></div>}
+                        </td>
+                        <td style={s.td}><Btn pid={p.id} estado={p.estado}/></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>}
+            </div>
+          </div>
+        )}
+
+        {/* LOGISTICA */}
+        {vista==="logistica" && (
+          <div style={s.cols}>
+            <div style={s.col}>
+              <div style={s.card}>
+                <div style={s.ct}>Rutas de Entrega</div>
+                {RUTAS_CONFIG.map(r=>(
+                  <div key={r.ruta} style={{...s.rc,borderLeft:"4px solid "+r.color}}>
+                    <div style={s.rh}>
+                      <div><div style={{...s.rn,color:r.color}}>{r.ruta}</div><div style={s.rcho}>{r.chofer}</div></div>
+                      <span style={s.rcnt}>{r.tiendas.length} tiendas</span>
+                    </div>
+                    <div style={s.rt}>{r.tiendas.map((t,i)=><span key={t} style={s.rtag}>{i+1}. {t}</span>)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{...s.col,maxWidth:310}}>
+              <div style={s.card}>
+                <div style={s.ct}>Estado por Tienda</div>
+                {TIENDAS.map(t=>{ const u=pedidosFiltrados.filter(p=>p.tienda===t)[0]; return (
+                  <div key={t} style={s.tr2}>
+                    <div style={s.tn}>{t}</div>
+                    {u?<span style={{...s.badge,background:ESTADOS[u.estado].bg,color:ESTADOS[u.estado].color,fontSize:10}}>{ESTADOS[u.estado].label}</span>:<span style={{...s.badge,background:"#f3f4f6",color:"#9ca3af",fontSize:10}}>Sin pedido</span>}
+                  </div>
+                );})}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RUTAS */}
+        {vista==="rutas" && (
+          <div>
+            <div style={{...s.card,marginBottom:14,background:"#1a1a2e",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:7}} className="no-print">
+              <div><div style={{color:"#fbbf24",fontWeight:900,fontSize:14}}>Rutas del Dia</div><div style={{color:"#94a3b8",fontSize:10,marginTop:2}}>Pedidos agrupados por ruta en tiempo real</div></div>
+              {usuario.id==="admin"&&<button style={s.btnExcel} onClick={exportarExcel}>Excel</button>}
+            </div>
+            {RUTAS_CONFIG.map(r=>{ const pr=pedidosFiltrados.filter(p=>r.tiendas.includes(p.tienda)); if(!pr.length)return null; const ent=pr.filter(p=>p.estado==="entregado").length; return (
+              <div key={r.ruta} style={{...s.card,marginBottom:12,borderTop:"4px solid "+r.color}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+                  <div><div style={{fontWeight:900,fontSize:13,color:r.color}}>{r.ruta}</div><div style={{fontSize:10,color:"#6b7280",marginTop:1}}>{r.chofer}</div></div>
+                  <div style={{textAlign:"right"}}><div style={{fontWeight:800,fontSize:18,color:r.color}}>{ent}/{pr.length}</div><div style={{fontSize:9,color:"#9ca3af"}}>entregados</div></div>
+                </div>
+                <div style={{background:"#f3f4f6",borderRadius:99,height:5,marginBottom:11}}>
+                  <div style={{background:r.color,borderRadius:99,height:5,width:(pr.length>0?(ent/pr.length)*100:0)+"%",transition:"width .4s"}}/>
+                </div>
+                {pr.map(p=>(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"9px 0",borderBottom:"1px solid #f3f4f6"}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:2}}>
+                        <span style={{fontWeight:800,fontSize:11}}>{p.id}</span>
+                        <span style={{...s.badge,background:ESTADOS[p.estado].bg,color:ESTADOS[p.estado].color,fontSize:9}}>{ESTADOS[p.estado].label}</span>
+                      </div>
+                      <div style={{fontSize:11,fontWeight:600,color:"#1a1a2e"}}>{p.tienda}</div>
+                      <div style={{fontSize:10,color:"#9ca3af",marginTop:1}}>{p.productos.map(x=>x.nombre+" x"+x.cantidad).join(" / ")}</div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}>
+                      <div style={{fontSize:10,color:"#9ca3af"}}>{p.hora}</div>
+                      <Btn pid={p.id} estado={p.estado}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );})}
+            {pedidosFiltrados.length===0&&<div style={{...s.card,textAlign:"center",color:"#9ca3af",padding:36}}>Sin pedidos hoy</div>}
+          </div>
+        )}
+
+        {/* DESGLOSE */}
+        {vista==="desglose" && (()=>{
+          const fecha=new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"});
+          const pendientes=pedidos.filter(p=>p.estado!=="entregado");
+          const entregados=pedidos.filter(p=>p.estado==="entregado");
+          const prodUsados=[...new Set(pendientes.flatMap(p=>p.productos.map(x=>x.nombre)))];
+          const totales={};
+          prodUsados.forEach(prod=>{ totales[prod]=pendientes.reduce((sum,p)=>{ const f=p.productos.find(x=>x.nombre===prod); return sum+(f?f.cantidad:0); },0); });
+          return (
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13,flexWrap:"wrap",gap:7}} className="no-print">
+                <div style={{fontWeight:900,fontSize:14,color:"#1a1a2e"}}>Desglose en Vivo - {fecha}</div>
+                <div style={{display:"flex",gap:7}}>
+                  {usuario.id==="admin"&&<button style={s.btnExcel} onClick={exportarExcel}>Excel</button>}
+                  <button style={{...s.btnExcel,background:"#1a1a2e"}} onClick={()=>window.print()}>Imprimir</button>
+                  {usuario.rol==="admin"&&<button style={{...s.btnExcel,background:"#7c3aed"}} onClick={exportarExcel}>Descargar Desglose</button>}
+                </div>
+              </div>
+              <div style={s.stats} className="no-print">
+                <div style={s.sc}><div style={{...s.sn,color:"#f59e0b"}}>{pendientes.length}</div><div style={s.sl}>Pendientes</div></div>
+                <div style={s.sc}><div style={{...s.sn,color:"#10b981"}}>{entregados.length}</div><div style={s.sl}>Entregadas</div></div>
+                <div style={s.sc}><div style={{...s.sn,color:"#3b82f6"}}>{Object.values(totales).reduce((a,b)=>a+b,0)}</div><div style={s.sl}>Piezas x Entregar</div></div>
+              </div>
+              <div style={s.card} id="hoja-desglose">
+                <div style={{textAlign:"center",marginBottom:13}}>
+                  <div style={{fontWeight:900,fontSize:14,color:"#1a1a2e"}}>MASHARI S.A. DE C.V. - DESGLOSE TIJUANA</div>
+                  <div style={{fontSize:11,color:"#6b7280"}}>Fecha: {fecha} | Pedidos activos: {pendientes.length}</div>
+                </div>
+                {pendientes.length===0?<div style={s.empty}>Todo entregado</div>:
+                <div style={{overflowX:"auto"}}>
+                  <table style={{...s.tabla,fontSize:11}}>
+                    <thead>
+                      <tr style={{background:"#1a1a2e"}}>
+                        <th style={{...s.th,color:"#fbbf24"}}>#</th>
+                        <th style={{...s.th,color:"#fbbf24"}}>DULCERIA</th>
+                        {prodUsados.map(p=><th key={p} style={{...s.th,color:"#fbbf24",textAlign:"center",fontSize:9}}>{p.replace(" Vaquero","").replace("Churritos ","Ch.").replace("Fritura Surtida","Frit.").trim()}</th>)}
+                        <th style={{...s.th,color:"#fbbf24",textAlign:"center"}}>ESTADO</th>
+                        <th style={{...s.th,color:"#fbbf24"}}>CAMBIOS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendientes.map((p,i)=>(
+                        <tr key={p.id} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
+                          <td style={{...s.td,fontWeight:700,color:"#9ca3af"}}>{i+1}</td>
+                          <td style={{...s.td,fontWeight:700,color:"#1a1a2e",whiteSpace:"nowrap"}}>
+                            {p.tienda.replace("DULFI ","").replace("MEGA ","")}
+                            <div style={{fontSize:9,color:"#9ca3af",fontWeight:400}}>{p.ruta}</div>
+                          </td>
+                          {prodUsados.map(prod=>{ const f=p.productos.find(x=>x.nombre===prod); return <td key={prod} style={{...s.td,textAlign:"center",fontWeight:f?800:400,color:f?"#1a1a2e":"#e5e7eb"}}>{f?f.cantidad:"-"}</td>; })}
+                          <td style={{...s.td,textAlign:"center"}}>
+                            <span style={{...s.badge,background:ESTADOS[p.estado].bg,color:ESTADOS[p.estado].color,fontSize:9}}>{ESTADOS[p.estado].label}</span>
+                            <div style={{display:"flex",gap:2,justifyContent:"center",marginTop:3}}>
+                              {p.estado!=="entregado"&&<button style={{...s.ba,fontSize:9,padding:"2px 5px"}} onClick={()=>avanzar(p.id)}>-&gt;</button>}
+                              {p.estado!=="pendiente"&&<button style={{...s.br,fontSize:9,padding:"2px 5px"}} onClick={()=>regresar(p.id)}>&lt;-</button>}
+                            </div>
+                          </td>
+                          <td style={{...s.td,fontSize:10,color:"#6b7280"}}>
+                            {cambios.filter(x=>x.tienda===p.tienda).map(x=>(
+                              <div key={x.id} style={{marginBottom:2,padding:"2px 5px",borderRadius:4,background:x.tipo==="devolucion"?"#fee2e2":x.tipo==="cambio"?"#dbeafe":"#fef3c7",fontSize:9}}>
+                                {x.tipo.toUpperCase()}: {x.productos.map(pr=>pr.producto+" x"+pr.cantidad).join(", ")}
+                              </div>
+                            ))}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{background:"#fef3c7",borderTop:"2px solid #f59e0b"}}>
+                        <td style={{...s.td,fontWeight:900,color:"#92400e"}} colSpan={2}>TOTAL</td>
+                        {prodUsados.map(prod=><td key={prod} style={{...s.td,textAlign:"center",fontWeight:900,color:"#92400e",fontSize:13}}>{totales[prod]||0}</td>)}
+                        <td style={s.td} colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>}
+                {entregados.length>0&&usuario.id==="admin"&&(
+                  <div className="no-print" style={{marginTop:13,paddingTop:9,borderTop:"2px dashed #d1fae5"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#10b981",marginBottom:5}}>YA ENTREGADAS ({entregados.length})</div>
+                    {entregados.map(p=><div key={p.id} style={{fontSize:10,color:"#9ca3af",textDecoration:"line-through",padding:"2px 0"}}>{p.tienda} - {p.hora}</div>)}
+                  </div>
+                )}
+                {cambios.length>0&&usuario.id==="admin"&&(
+                  <div className="no-print" style={{marginTop:13,paddingTop:9,borderTop:"2px dashed #fee2e2"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f97316",marginBottom:7}}>CAMBIOS Y DEVOLUCIONES</div>
+                    {cambios.map(x=>(
+                      <div key={x.id} style={{padding:"6px 0",borderBottom:"1px solid #f3f4f6"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                          <span style={{fontWeight:700,fontSize:11,color:x.tipo==="devolucion"?"#dc2626":x.tipo==="cambio"?"#3b82f6":"#f59e0b"}}>{x.tipo.toUpperCase()} - {x.tienda}</span>
+                          <span style={{fontSize:9,color:"#9ca3af"}}>{x.hora}</span>
+                        </div>
+                        {x.productos.map((p,i)=><div key={i} style={{fontSize:10,color:"#374151",paddingLeft:7}}>- {p.producto} x{p.cantidad}</div>)}
+                        {x.nota&&<div style={{fontSize:10,color:"#9ca3af",paddingLeft:7}}>{x.nota}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* MODO ENVIO - pantalla inicio */}
+        {vista==="envio" && !envioIniciado && (
+          <div style={{textAlign:"center",padding:50}}>
+            <div style={{fontSize:36,marginBottom:14}}>🚛</div>
+            <div style={{fontWeight:900,fontSize:18,color:"#1a1a2e",marginBottom:7}}>Modo Envio</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:22}}>Carga interactiva - toca los numeros para tacharlos conforme se cargan</div>
+            <button style={{...s.bwsp,maxWidth:280,margin:"0 auto",background:"#f97316"}} onClick={iniciarModoEnvio}>
+              Iniciar Carga del Dia
+            </button>
+          </div>
+        )}
+
+        {/* MODO ENVIO - tabla interactiva */}
+        {vista==="envio" && envioIniciado && (()=>{
+          const tiendasActivas=envioTiendas.filter(t=>t.activa);
+          const prodUsados=[...new Set(tiendasActivas.flatMap(t=>t.productos.map(p=>p.nombre)))];
+          const totalesFijos={};
+          prodUsados.forEach(prod=>{ totalesFijos[prod]=tiendasActivas.reduce((sum,t)=>{ const f=t.productos.find(p=>p.nombre===prod); return sum+(f?f.cantidad:0); },0); });
+          const totalesPend={};
+          prodUsados.forEach(prod=>{ totalesPend[prod]=tiendasActivas.reduce((sum,t)=>{ const f=t.productos.find(p=>p.nombre===prod&&!p.tachado); return sum+(f?f.cantidad:0); },0); });
+          const totalG=tiendasActivas.reduce((sum,t)=>sum+t.productos.reduce((s,p)=>s+p.cantidad,0),0);
+          const totalC=tiendasActivas.reduce((sum,t)=>sum+t.productos.filter(p=>p.tachado).reduce((s,p)=>s+p.cantidad,0),0);
+          const totalP=totalG-totalC;
+          const tiendaOk=(t)=>t.productos.every(p=>p.tachado);
+          const togTienda=(id)=>setEnvioTiendas(prev=>prev.map(t=>t.id===id?{...t,activa:!t.activa}:t));
+          const togProd=(tid,pnom)=>setEnvioTiendas(prev=>prev.map(t=>{ if(t.id!==tid)return t; return {...t,productos:t.productos.map(p=>p.nombre===pnom?{...p,tachado:!p.tachado}:p)}; }));
+          return (
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#1a1a2e",borderRadius:12,padding:"14px 18px",marginBottom:14,flexWrap:"wrap",gap:11}}>
+                <div><div style={{color:"#fbbf24",fontWeight:900,fontSize:14}}>Modo Envio - Carga del Dia</div><div style={{color:"#94a3b8",fontSize:10,marginTop:1}}>Toca un numero para tacharlo</div></div>
+                <div style={{display:"flex",gap:18,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{textAlign:"center"}}><div style={{color:"#fbbf24",fontWeight:900,fontSize:22}}>{totalG}</div><div style={{color:"#94a3b8",fontSize:9}}>TOTAL</div></div>
+                  <div style={{width:1,height:32,background:"#ffffff22"}}/>
+                  <div style={{textAlign:"center"}}><div style={{color:"#10b981",fontWeight:900,fontSize:22}}>{totalC}</div><div style={{color:"#94a3b8",fontSize:9}}>CARGADO</div></div>
+                  <div style={{width:1,height:32,background:"#ffffff22"}}/>
+                  <div style={{textAlign:"center"}}><div style={{color:"#f97316",fontWeight:900,fontSize:22}}>{totalP}</div><div style={{color:"#94a3b8",fontSize:9}}>PENDIENTE</div></div>
+                  <button style={{...s.br,fontSize:10}} onClick={()=>setEnvioIniciado(false)}>Reiniciar</button>
+                </div>
+              </div>
+              <div style={s.card}>
+                <div style={s.ct}>Tiendas en esta carga</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+                  {envioTiendas.map(t=>(
+                    <div key={t.id} onClick={()=>togTienda(t.id)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:700,border:"2px solid",transition:"all .15s",borderColor:tiendaOk(t)&&t.activa?"#10b981":t.activa?"#1a1a2e":"#e5e7eb",background:tiendaOk(t)&&t.activa?"#d1fae5":t.activa?"#1a1a2e":"#f3f4f6",color:tiendaOk(t)&&t.activa?"#065f46":t.activa?"#fbbf24":"#9ca3af",textDecoration:tiendaOk(t)&&t.activa?"line-through":"none"}}>
+                      {tiendaOk(t)&&t.activa?"OK ":!t.activa?"X ":""}{t.tienda.replace("DULFI ","").replace("MEGA ","")}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={s.card}>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <thead>
+                      <tr style={{background:"#1a1a2e"}}>
+                        <th style={{...s.th,color:"#fbbf24",textAlign:"left"}}>#</th>
+                        <th style={{...s.th,color:"#fbbf24",textAlign:"left"}}>DULCERIA</th>
+                        {prodUsados.map(p=><th key={p} style={{...s.th,color:"#fbbf24",textAlign:"center",fontSize:9}}>{p.replace(" Vaquero","").replace("Churritos ","Ch.").replace("Fritura Surtida","Frit.").trim()}</th>)}
+                        <th style={{...s.th,color:"#fbbf24",textAlign:"center"}}>ESTADO</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tiendasActivas.map((t,i)=>(
+                        <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6",background:tiendaOk(t)?"#f0fdf4":i%2===0?"#fff":"#fafafa"}}>
+                          <td style={{...s.td,color:"#9ca3af",fontWeight:700}}>{i+1}</td>
+                          <td style={{...s.td,fontWeight:700,whiteSpace:"nowrap"}}>
+                            <div style={{color:"#1a1a2e",textDecoration:tiendaOk(t)?"line-through":"none",opacity:tiendaOk(t)?0.5:1}}>{t.tienda.replace("DULFI ","").replace("MEGA ","")}</div>
+                            <div style={{fontSize:9,color:"#9ca3af"}}>{t.ruta}</div>
+                          </td>
+                          {prodUsados.map(prod=>{ const f=t.productos.find(p=>p.nombre===prod); return (
+                            <td key={prod} style={{...s.td,textAlign:"center"}} onClick={()=>f&&togProd(t.id,prod)}>
+                              {f?(<span style={{display:"inline-block",fontWeight:800,fontSize:13,color:f.tachado?"#10b981":"#1a1a2e",textDecoration:f.tachado?"line-through":"none",cursor:"pointer",padding:"3px 7px",borderRadius:5,background:f.tachado?"#d1fae5":"#f3f4f6",minWidth:32,transition:"all .15s",userSelect:"none"}}>{f.cantidad}</span>):<span style={{color:"#e5e7eb"}}>-</span>}
+                            </td>
+                          );})}
+                          <td style={{...s.td,textAlign:"center"}}>
+                            {tiendaOk(t)?<span style={{background:"#d1fae5",color:"#065f46",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700}}>Listo</span>:t.productos.some(p=>p.tachado)?<span style={{background:"#ffedd5",color:"#c2410c",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700}}>Parcial</span>:<span style={{background:"#fef3c7",color:"#92400e",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700}}>Pendiente</span>}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{background:"#fef3c7",borderTop:"2px solid #f59e0b"}}>
+                        <td style={{...s.td,fontWeight:900,color:"#92400e"}} colSpan={2}>TOTAL GENERAL</td>
+                        {prodUsados.map(prod=><td key={prod} style={{...s.td,textAlign:"center",fontWeight:900,color:"#92400e",fontSize:14}}>{totalesFijos[prod]||"-"}</td>)}
+                        <td style={s.td}></td>
+                      </tr>
+                      <tr style={{background:"#d1fae5",borderTop:"1px solid #6ee7b7"}}>
+                        <td style={{...s.td,fontWeight:900,color:"#065f46"}} colSpan={2}>CARGADO</td>
+                        {prodUsados.map(prod=>{ const car=tiendasActivas.reduce((sum,t)=>{ const f=t.productos.find(p=>p.nombre===prod&&p.tachado); return sum+(f?f.cantidad:0); },0); return <td key={prod} style={{...s.td,textAlign:"center",fontWeight:900,color:"#065f46",fontSize:14}}>{car>0?car:"-"}</td>; })}
+                        <td style={s.td}></td>
+                      </tr>
+                      <tr style={{background:"#ffedd5",borderTop:"1px solid #fed7aa"}}>
+                        <td style={{...s.td,fontWeight:900,color:"#c2410c"}} colSpan={2}>PENDIENTE</td>
+                        {prodUsados.map(prod=><td key={prod} style={{...s.td,textAlign:"center",fontWeight:900,color:"#c2410c",fontSize:14}}>{totalesPend[prod]>0?totalesPend[prod]:<span style={{textDecoration:"line-through",color:"#10b981"}}>0</span>}</td>)}
+                        <td style={s.td}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ADMIN */}
+        {vista==="admin" && usuario.rol==="admin" && <AdminPanel usuario={usuario} usuarios={usuarios} mostrarNotif={mostrarNotif}/>}
+
+      </main>
+
+      {/* MODAL EDITAR PEDIDO */}
+      {editPedido&&(
+        <div style={s.ov} onClick={()=>setEditPedido(null)}>
+          <div style={s.modal} onClick={e=>e.stopPropagation()}>
+            <div style={{fontWeight:900,fontSize:15,color:"#1a1a2e",marginBottom:3}}>Editar Pedido</div>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{editPedido.tienda} - {editPedido.hora}</div>
+            {editProds.map((prod,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid #f3f4f6"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"#374151",flex:1}}>{prod.nombre}</div>
+                <div style={{display:"flex",alignItems:"center",gap:7}}>
+                  <button style={s.bm} onClick={()=>setEditProds(prev=>prev.map((x,j)=>j===i?{...x,cantidad:Math.max(0,x.cantidad-1)}:x))}>-</button>
+                  <input type="number" min="0" style={{width:50,textAlign:"center",fontWeight:800,fontSize:14,border:"1.5px solid #e5e7eb",borderRadius:5,padding:"2px 3px",fontFamily:"inherit"}} value={prod.cantidad} onChange={e=>setEditProds(prev=>prev.map((x,j)=>j===i?{...x,cantidad:parseInt(e.target.value)||0}:x))}/>
+                  <button style={s.bp} onClick={()=>setEditProds(prev=>prev.map((x,j)=>j===i?{...x,cantidad:x.cantidad+1}:x))}>+</button>
+                </div>
+              </div>
+            ))}
+            <div style={{marginTop:11,paddingTop:11,borderTop:"2px dashed #f3f4f6"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:7}}>Agregar producto:</div>
+              <div style={{display:"flex",gap:5}}>
+                <select id="prod-add" style={{...s.sel,flex:1,padding:"6px 7px",fontSize:11}}>
+                  {PRODUCTOS.filter(p=>!editProds.find(x=>x.nombre===p.nombre)).map(p=><option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                </select>
+                <button style={{...s.bp,width:32,height:32,borderRadius:7,fontSize:18,flexShrink:0}} onClick={()=>{ const sel=document.getElementById("prod-add"); if(sel&&sel.value)setEditProds(prev=>[...prev,{nombre:sel.value,cantidad:1}]); }}>+</button>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:7,marginTop:13}}>
+              <button style={{...s.bwsp,marginTop:0,flex:1}} onClick={guardarEdicionPedido}>Guardar Cambios</button>
+              <button style={{...s.br,flex:1}} onClick={()=>setEditPedido(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLE */}
+      {detalle&&(
+        <div style={s.ov} onClick={()=>setDetalle(null)}>
+          <div style={s.modal} onClick={e=>e.stopPropagation()}>
+            <div style={{fontWeight:900,fontSize:15,color:"#1a1a2e",marginBottom:13}}>Detalle Pedido</div>
+            {[["Tienda",detalle.tienda],["Hora",detalle.hora],["Ruta",detalle.ruta],["Chofer",detalle.chofer],["Creado por",detalle.creadoPor]].map(([k,v])=>(
+              <div key={k} style={{fontSize:12,marginBottom:7}}><b>{k}:</b> {v||"-"}</div>
+            ))}
+            <div style={{fontSize:12,marginBottom:7,display:"flex",alignItems:"center",gap:7}}><b>Estado:</b><span style={{...s.badge,background:ESTADOS[detalle.estado].bg,color:ESTADOS[detalle.estado].color}}>{ESTADOS[detalle.estado].label}</span></div>
+            <div style={{fontSize:12,fontWeight:700,marginBottom:5}}>Productos:</div>
+            {detalle.productos.map(p=><div key={p.nombre} style={s.ci}><span>{p.nombre}</span><strong>{p.cantidad} bultos</strong></div>)}
+            <button style={s.bwsp} onClick={()=>setDetalle(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
